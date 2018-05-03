@@ -1,0 +1,25 @@
+{
+  "extends": [],
+  "parser": "babel-eslint",
+  "parserOptions": {
+    "ecmaVersion": 6,
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "plugins": ["prettier"],
+  "env": {
+    "browser": true,
+    "node": true,
+    "mocha": true,
+    "es6": true
+  },
+  "rules": {
+    "space-before-function-paren": "off",
+    "linebreak-style": "off",
+    "global-require": "off",
+    "arrow-body-style": "off",
+    "prettier/prettier": "error",
+    "class-methods-use-this": "off"
+  }
+}
