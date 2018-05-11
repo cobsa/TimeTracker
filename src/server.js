@@ -2,144 +2,105 @@ import express from 'express'
 import bodyParser from 'body-parser'
 import { graphqlExpress, graphiqlExpress } from 'apollo-server-express'
 import { makeExecutableSchema } from 'graphql-tools'
-import { find, filter, random } from 'lodash'
-import mongoose, { Schema } from 'mongoose'
 
-const mongoAddress = 'mongodb://localhost/timetracker'
+import mongoose from 'mongoose'
 
-// Connect to mongoDB
-mongoose.connect(mongoAddress)
-const db = mongoose.connection
-db.on('error', () => console.log('Cannot connect to MongoDB'))
-db.once('open', () => {
-  const ObjectId = Schema.Types.ObjectId
-  // Define mongoose schemas
-  const userSchema = Schema({
-    id: ObjectId,
-    name: String,
-    email: String
-  })
-  const User = mongoose.model('User', userSchema)
-  const recordSchema = Schema({
-    id: ObjectId,
-    type: String,
-    done: Boolean,
-    start: Date,
-    end: Date,
-    uid: ObjectId
-  })
-  const Record = mongoose.model('Record', recordSchema)
+import { Record } from './mongoose/models/models'
+import MongooseService from './mongoose/resolvers/resolvers'
+import typeDefs from './graphql/types/types'
 
-  // Apollo config
-  const typeDefs = `
-    type Query {
-        records(id: String!): [Record]
-        user(id: String!): User
-    }
-    type Record { start: String, end: String, type: String, duration: Int, uid: String!, _id: String!, done: Boolean}
-    type User { name: String!, _id: String!, email: String!, records: [Record], activeRecord: Record}
-
-    type Mutation{
-      addUser(
-        name: String!
-        email: String!
-      ): User
-
-      startRecord(
-          start: String!
-          type: String!
-          uid: String!
-      ): Record
-
-      endRecord(
-          id: String!
-          end: String!
-      ): Record
-    }
-    `
-
-  const resolvers = {
-    Query: {
-      records: (_, { id }) => {
-        return Record.find({ _id: id }, (err, product) => {
-          if (err) {
-          }
-          return product
-        })
-      },
-      user: (_, { id }) => {
-        return User.findOne({ _id: id }, (err, product) => {
-          return product
-        })
+const mongoConfig = () => {
+  switch (process.env.NODE_ENV) {
+    case 'development': {
+      return {
+        url: 'mongodb://localhost/timetracker',
+        config: {
+          auto_reconnect: true
+        }
       }
-    },
-    Mutation: {
-      addUser: (_, { name, email }) => {
-        const promise = User.create({ name, email })
-        promise.then(product => {
-          return product
-        })
-        return promise
+    }
+    case 'production': {
+      return null
+    }
+    case 'test': {
+      return {
+        url: 'mongodb://localhost/test',
+        config: {
+          auto_reconnect: true
+        }
+      }
+    }
+  }
+}
+
+let serverInstance
+const app = express()
+const startServer = (done, port) => {
+  // Connect to mongoDB
+  mongoose.connect(mongoConfig().url, mongoConfig().config)
+  const db = mongoose.connection
+  db.on('error', () => console.log('Cannot connect to MongoDB'))
+  db.once('open', () => {
+    const resolvers = {
+      Query: {
+        records: MongooseService.records,
+        user: MongooseService.user
       },
-      startRecord: (_, { start, type, uid }) => {
-        return Record.count({ uid, done: false })
-          .exec()
-          .then(count => {
-            if (count === 0) {
-              return Record.create({ type, start: new Date(start), uid, done: false }).then(
-                product => {
-                  return product
-                }
-              )
-            }
+      Mutation: {
+        addUser: MongooseService.addUser,
+        loginUser: MongooseService.loginUser,
+        startRecord: MongooseService.startRecord,
+        endRecord: MongooseService.endRecord
+      },
+      User: {
+        records: user => {
+          return Record.find({ uid: user['_id'] }, (err, product) => {
+            return product
           })
-
-        /* return Record.create({ type, start: new Date(start), uid, done: false }).then(
-          (err, product) => {
-            console.log(err)
-            console.log(product)
-            return err
-          }
-        ) */
-      },
-      endRecord: (_, { id, end }) => {
-        //Check that record in question is not ended already and modify end timestamp
-        const promise = Record.findOneAndUpdate(
-          { _id: id, end: undefined },
-          { end: new Date(end), done: true },
-          { new: true }
-        ).exec()
-        promise.then(product => {
-          return product
-        })
-        return promise
-      }
-    },
-    User: {
-      records: user => {
-        return Record.find({ uid: user['_id'] }, (err, product) => {
-          return product
-        })
-      },
-      activeRecord: user => {
-        return Record.findOne({ uid: user['_id'], done: false })
+        },
+        activeRecord: user => {
+          return Record.findOne({ uid: user['_id'], done: false })
+        }
       }
     }
-  }
 
-  const schema = makeExecutableSchema({
-    typeDefs,
-    resolvers
+    const schema = makeExecutableSchema({
+      typeDefs,
+      resolvers
+    })
+
+    app.use(
+      '/graphql',
+      bodyParser.json(),
+      graphqlExpress(req => {
+        return {
+          schema,
+          context: {
+            token: req.headers.authorization
+          }
+        }
+      })
+    )
+
+    if (process.env.NODE_ENV === 'development') {
+      // GraphiQL, a visual editor for queries
+      app.use('/graphiql', graphiqlExpress({ endpointURL: '/graphql' }))
+    }
+
+    serverInstance = app.listen(port, () => {
+      console.log('Server online at port: ' + port)
+      done()
+    })
   })
+}
 
-  const app = express()
+const stopServer = done => {
+  serverInstance.close(() => {
+    done()
+  })
+}
+if (process.env.NODE_ENV !== 'test') {
+  startServer(() => null, 3000)
+}
 
-  app.use('/graphql', bodyParser.json(), graphqlExpress({ schema }))
-
-  if (process.env.NODE_ENV === 'development') {
-    // GraphiQL, a visual editor for queries
-    app.use('/graphiql', graphiqlExpress({ endpointURL: '/graphql' }))
-  }
-
-  app.listen(3000, () => console.log('Server is upp'))
-})
+export { startServer, stopServer }
