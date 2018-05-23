@@ -2,8 +2,10 @@ import express from 'express'
 import bodyParser from 'body-parser'
 import { graphqlExpress, graphiqlExpress } from 'apollo-server-express'
 import { makeExecutableSchema } from 'graphql-tools'
-
+import cors from 'cors'
 import mongoose from 'mongoose'
+import { GraphQLScalarType } from 'graphql'
+import { Kind } from 'graphql/language'
 
 import { Record } from './mongoose/models/models'
 import MongooseService from './mongoose/resolvers/resolvers'
@@ -42,6 +44,22 @@ const startServer = (done, port) => {
   db.on('error', () => console.log('Cannot connect to MongoDB'))
   db.once('open', () => {
     const resolvers = {
+      Date: new GraphQLScalarType({
+        name: 'Date',
+        description: 'Serializes Date as ISO string',
+        parseValue(value) {
+          return new Date(value) // value from the client
+        },
+        serialize(value) {
+          return value.toISOString() // value sent to the client
+        },
+        parseLiteral(ast) {
+          if (ast.kind === Kind.STRING) {
+            return ast.value // ast value is always in string format
+          }
+          return null
+        }
+      }),
       Query: {
         records: MongooseService.records,
         user: MongooseService.user
@@ -69,6 +87,9 @@ const startServer = (done, port) => {
       resolvers
     })
 
+    // Add cors support
+    app.use(cors())
+
     app.use(
       '/graphql',
       bodyParser.json(),
@@ -76,7 +97,7 @@ const startServer = (done, port) => {
         return {
           schema,
           context: {
-            token: req.headers.authorization
+            token: req.headers.authorization === '' ? undefined : req.headers.authorization
           }
         }
       })

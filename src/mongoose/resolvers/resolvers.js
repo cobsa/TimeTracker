@@ -40,6 +40,8 @@ const user = pipeResolvers(isAuthenticated, (uid, {}) => {
 
 const addUser = (_, { name, email, password, passwordAgain }) => {
   // Check that passwords match and that email is not yet in db
+  if (email === '') return new Error('Email can not be empty')
+  if (password === '') return new Error('Password can not be empty')
   if (password === passwordAgain) {
     return bcrypt.hash(password, 10).then(hash => {
       return User.create({ name, email, password: hash })

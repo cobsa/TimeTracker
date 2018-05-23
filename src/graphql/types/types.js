@@ -1,9 +1,16 @@
 const typeDefs = `
+    scalar Date
+    enum RecordType {
+        WORKOUT
+        WORK
+        SLEEP
+        FREETIME
+    }
     type Query {
         records: [Record]
-        user: User
+        user: User!
     }
-    type Record { start: String, end: String, type: String, duration: Int, uid: String!, _id: String!, done: Boolean}
+    type Record { start: Date, end: Date, type: RecordType, uid: String!, _id: String!, done: Boolean}
     type User { name: String!, _id: String!, email: String!, records: [Record], activeRecord: Record}
 
     type Mutation{
