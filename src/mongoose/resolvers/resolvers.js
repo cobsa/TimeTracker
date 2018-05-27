@@ -40,8 +40,9 @@ const user = pipeResolvers(isAuthenticated, (uid, {}) => {
 
 const addUser = (_, { name, email, password, passwordAgain }) => {
   // Check that passwords match and that email is not yet in db
-  if (email === '') return new Error('Email can not be empty')
-  if (password === '') return new Error('Password can not be empty')
+  if (email === '' || password === '') {
+    return new Error('Email&Password cannot be empty')
+  }
   if (password === passwordAgain) {
     return bcrypt.hash(password, 10).then(hash => {
       return User.create({ name, email, password: hash })
@@ -56,10 +57,13 @@ const addUser = (_, { name, email, password, passwordAgain }) => {
   return new Error('Passwords do not match')
 }
 const loginUser = (_, { email, password }) => {
+  if (email === '' || password === '') {
+    return new Error('Email&Password cannot be empty')
+  }
   return User.findOne({ email })
     .exec()
     .then(product => {
-      if (product !== undefined) {
+      if (product) {
         return bcrypt.compare(password, product.password).then(res => {
           if (res) {
             // Return json webtoken
