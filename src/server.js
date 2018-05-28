@@ -37,6 +37,14 @@ const mongoConfig = () => {
         }
       }
     }
+    default: {
+      return {
+        url: 'mongodb://localhost/timetracker',
+        config: {
+          auto_reconnect: true
+        }
+      }
+    }
   }
 }
 
