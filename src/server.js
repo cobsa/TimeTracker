@@ -22,7 +22,12 @@ const mongoConfig = () => {
       }
     }
     case 'production': {
-      return null
+      return {
+        url: 'mongodb://localhost/timetracker',
+        config: {
+          auto_reconnect: true
+        }
+      }
     }
     case 'test': {
       return {
